@@ -11,9 +11,6 @@ import { trackingRouter } from './routes/tracking'
 import { sesRouter } from './routes/ses'
 import { hashPassword } from './auth'
 import { query } from './db'
-
-import { hashPassword } from './auth'
-import { query } from './db'
 import { ensureSchema } from './migrate'
 
 async function ensureAdmin() {
