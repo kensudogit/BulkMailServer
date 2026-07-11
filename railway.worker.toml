@@ -1,0 +1,14 @@
+# Bulk Mail Server — Worker (Railway)
+#
+# Dockerfile Path = Dockerfile.worker
+# 公開ドメイン不要（内部サービス）
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.worker"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+numReplicas = 1

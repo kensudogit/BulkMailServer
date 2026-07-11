@@ -133,6 +133,19 @@ mvn spring-boot:run
 
 主なエンドポイント: `/auth/login` `/campaigns` `/reputation` `/health`
 
+## Railway デプロイ
+
+詳細は [docs/RAILWAY.md](docs/RAILWAY.md)。
+
+- `Dockerfile.api` / `Dockerfile.web` / `Dockerfile.worker`
+- Postgres + Redis（Railway プラグイン）+ RabbitMQ イメージ
+- 本番メールは `MAIL_PROVIDER=ses`
+
+```bash
+railway login
+railway link   # または Dashboard で GitHub 連携
+```
+
 ## ディレクトリ
 
 

@@ -1,0 +1,14 @@
+# Bulk Mail Server — Web (Railway)
+#
+# Dockerfile Path = Dockerfile.web
+# Build arg / var: NEXT_PUBLIC_API_BASE=https://<api-domain>
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.web"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+numReplicas = 1

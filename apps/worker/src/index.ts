@@ -16,7 +16,7 @@ const pool = new Pool({
 
 const rabbitUrl = process.env.RABBITMQ_URL || 'amqp://bms:bms_secret@localhost:5672'
 const queueSend = process.env.RABBITMQ_QUEUE_SEND || QUEUE.SEND
-const metricsPort = Number(process.env.WORKER_METRICS_PORT || 8081)
+const metricsPort = Number(process.env.PORT || process.env.WORKER_METRICS_PORT || 8081)
 
 const sentCounter = new client.Counter({
   name: 'bms_worker_sent_total',

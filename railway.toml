@@ -1,0 +1,22 @@
+# Bulk Mail Server — Railway (API サービス用)
+#
+# Dashboard:
+#   Root Directory  = (blank)
+#   Dockerfile Path = Dockerfile.api
+#   Config file     = /railway.toml
+#
+# 追加サービス:
+#   web     → Dockerfile.web
+#   worker  → Dockerfile.worker
+#   Postgres / Redis プラグイン
+#   RabbitMQ → image rabbitmq:3-management-alpine
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.api"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+numReplicas = 1

@@ -12,6 +12,10 @@ import { sesRouter } from './routes/ses'
 import { hashPassword } from './auth'
 import { query } from './db'
 
+import { hashPassword } from './auth'
+import { query } from './db'
+import { ensureSchema } from './migrate'
+
 async function ensureAdmin() {
   const hash = await hashPassword('admin1234')
   await query(
@@ -23,6 +27,13 @@ async function ensureAdmin() {
 }
 
 async function main() {
+  try {
+    await ensureSchema()
+    await ensureAdmin()
+  } catch (e) {
+    console.warn('[api] bootstrap skipped (DB not ready?):', e)
+  }
+
   const app = express()
   app.use(cors({ origin: true, credentials: true }))
   // SNS は text/plain で JSON を送る場合がある
@@ -56,12 +67,6 @@ async function main() {
   app.use('/', sesRouter)
   app.use('/reputation', reputationRouter)
   app.use('/t', trackingRouter)
-
-  try {
-    await ensureAdmin()
-  } catch (e) {
-    console.warn('[api] ensureAdmin skipped (DB not ready?):', e)
-  }
 
   app.listen(env.port, () => {
     console.log(`[api] listening on :${env.port}`)
