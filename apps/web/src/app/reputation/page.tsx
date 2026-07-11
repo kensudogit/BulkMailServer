@@ -3,8 +3,10 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Nav } from '@/components/Nav'
 import { api } from '@/lib/api'
+import { useAuthGuard } from '@/lib/useAuthGuard'
 
 export default function ReputationPage() {
+  useAuthGuard({ requireAuth: true })
   const [metrics, setMetrics] = useState<Record<string, unknown> | null>(null)
   const [ip, setIp] = useState('1.2.3.4')
   const [domain, setDomain] = useState('example.local')

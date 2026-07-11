@@ -3,8 +3,10 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Nav } from '@/components/Nav'
 import { api } from '@/lib/api'
+import { useAuthGuard } from '@/lib/useAuthGuard'
 
 export default function RecipientsPage() {
+  useAuthGuard({ requireAuth: true })
   const [listName, setListName] = useState('')
   const [csv, setCsv] = useState('user1@example.com,太郎\nuser2@example.com,花子')
   const [lists, setLists] = useState<{ id: string; name: string; recipient_count?: number }[]>([])

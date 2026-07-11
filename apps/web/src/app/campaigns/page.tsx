@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Nav } from '@/components/Nav'
 import { api } from '@/lib/api'
+import { useAuthGuard } from '@/lib/useAuthGuard'
 
 type Campaign = {
   id: string
@@ -14,6 +15,7 @@ type Campaign = {
 }
 
 export default function CampaignsPage() {
+  useAuthGuard({ requireAuth: true })
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [name, setName] = useState('')
   const [subject, setSubject] = useState('')
