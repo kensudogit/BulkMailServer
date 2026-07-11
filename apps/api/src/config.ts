@@ -12,7 +12,8 @@ function req(name: string, fallback?: string): string {
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
-  port: Number(process.env.PORT || process.env.API_PORT || 8080),
+  // 一体型デプロイでは PORT は Next.js 用。API は API_PORT のみ使う
+  port: Number(process.env.API_PORT || 8080),
   apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8080',
   webBaseUrl: process.env.WEB_BASE_URL || 'http://localhost:3000',
   jwtSecret: req('JWT_SECRET', 'change-me-bulk-mail-jwt-secret-32chars'),

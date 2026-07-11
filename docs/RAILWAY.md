@@ -44,14 +44,19 @@ WEB_BASE_URL=https://<このサービスの公開ドメイン>
 NEXT_PUBLIC_API_BASE=/backend
 QUEUE_BACKEND=postgres
 RABBITMQ_URL=disabled
+# 一体型の内部ポート（通常は変更不要）
+# API_PORT=8081 / WORKER_METRICS_PORT=8082 / PORT は Railway が注入
 REDIS_URL=${{Redis.REDIS_URL}}   # 任意（無くても起動可）
 MAIL_PROVIDER=ses                # または smtp（要 SMTP_*）
 ```
 
-`QUEUE_BACKEND=postgres` のとき RabbitMQ は不要です（`send_jobs` テーブルで配信）。
-RabbitMQ を使う場合は `QUEUE_BACKEND=rabbitmq` と `RABBITMQ_URL` を設定してください。
+ポート割り当て（一体型）:
 
-初回ログイン: `admin@example.local` / `admin1234`
+| プロセス | ポート | 備考 |
+|---------|--------|------|
+| Web (Next.js) | `$PORT`（Railway） | 公開・ヘルスチェック `/` |
+| API | `8081` | 内部。`/backend` から rewrite |
+| Worker metrics | `8082` | 内部 |
 
 ## 分割デプロイ（任意）
 
