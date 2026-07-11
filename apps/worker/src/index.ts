@@ -18,6 +18,14 @@ const rabbitUrl = process.env.RABBITMQ_URL || 'amqp://bms:bms_secret@localhost:5
 const queueSend = process.env.RABBITMQ_QUEUE_SEND || QUEUE.SEND
 const metricsPort = Number(process.env.PORT || process.env.WORKER_METRICS_PORT || 8081)
 
+function resolveQueueBackend(): 'rabbitmq' | 'postgres' {
+  const forced = (process.env.QUEUE_BACKEND || '').toLowerCase()
+  if (forced === 'postgres' || forced === 'pg') return 'postgres'
+  if (forced === 'rabbitmq' || forced === 'amqp') return 'rabbitmq'
+  if (!process.env.RABBITMQ_URL || process.env.RABBITMQ_URL === 'disabled') return 'postgres'
+  return 'rabbitmq'
+}
+
 const sentCounter = new client.Counter({
   name: 'bms_worker_sent_total',
   help: 'Successfully sent messages',
@@ -41,7 +49,6 @@ async function isSuppressed(email: string): Promise<boolean> {
 
 async function handleSend(job: SendJobPayload) {
   const provider = resolveProvider()
-  // 送信直前に再チェック（配信停止・Complaint 後の再送防止）
   if (await isSuppressed(job.toEmail)) {
     await pool.query(
       `UPDATE messages SET status='suppressed', error='suppressed before send' WHERE id=$1`,
@@ -76,7 +83,12 @@ async function startMetricsServer() {
   client.collectDefaultMetrics()
   const app = express()
   app.get('/health', (_req, res) =>
-    res.json({ ok: true, service: 'bulkmail-worker', provider: resolveProvider() }),
+    res.json({
+      ok: true,
+      service: 'bulkmail-worker',
+      provider: resolveProvider(),
+      queue: resolveQueueBackend(),
+    }),
   )
   app.get('/metrics', async (_req, res) => {
     res.set('Content-Type', client.register.contentType)
@@ -85,35 +97,121 @@ async function startMetricsServer() {
   app.listen(metricsPort, () => console.log(`[worker] metrics on :${metricsPort}`))
 }
 
+async function consumeRabbit() {
+  for (;;) {
+    try {
+      const conn = await amqp.connect(rabbitUrl)
+      const ch = await conn.createChannel()
+      await ch.assertQueue(queueSend, { durable: true })
+      ch.prefetch(10)
+      console.log(`[worker] consuming rabbit ${queueSend} provider=${resolveProvider()}`)
+
+      await new Promise<void>((resolve, reject) => {
+        conn.on('error', reject)
+        conn.on('close', () => reject(new Error('rabbit connection closed')))
+        ch.consume(queueSend, async (msg) => {
+          if (!msg) return
+          try {
+            const job = JSON.parse(msg.content.toString()) as SendJobPayload
+            await handleSend(job)
+            ch.ack(msg)
+          } catch (e) {
+            failCounter.inc({ provider: resolveProvider() })
+            console.error('[worker] send failed', e)
+            try {
+              const job = JSON.parse(msg.content.toString()) as SendJobPayload
+              await pool.query(`UPDATE messages SET status='failed', error=$2 WHERE id=$1`, [
+                job.messageId,
+                e instanceof Error ? e.message : String(e),
+              ])
+            } catch {
+              // ignore
+            }
+            ch.nack(msg, false, false)
+          }
+        })
+      })
+    } catch (e) {
+      console.warn('[worker] rabbit unavailable, retry in 5s', e instanceof Error ? e.message : e)
+      await new Promise((r) => setTimeout(r, 5000))
+    }
+  }
+}
+
+async function pollPostgres() {
+  console.log(`[worker] polling postgres send_jobs provider=${resolveProvider()}`)
+  for (;;) {
+    try {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        const { rows } = await client.query<{ id: string; payload: SendJobPayload }>(
+          `SELECT id, payload
+           FROM send_jobs
+           WHERE status='pending'
+           ORDER BY created_at
+           FOR UPDATE SKIP LOCKED
+           LIMIT 5`,
+        )
+        for (const row of rows) {
+          await client.query(
+            `UPDATE send_jobs SET status='processing', locked_at=now() WHERE id=$1`,
+            [row.id],
+          )
+        }
+        await client.query('COMMIT')
+
+        for (const row of rows) {
+          try {
+            await handleSend(row.payload)
+            await pool.query(
+              `UPDATE send_jobs SET status='done', done_at=now() WHERE id=$1`,
+              [row.id],
+            )
+          } catch (e) {
+            failCounter.inc({ provider: resolveProvider() })
+            console.error('[worker] pg job failed', e)
+            await pool.query(
+              `UPDATE send_jobs SET status='failed', error=$2 WHERE id=$1`,
+              [row.id, e instanceof Error ? e.message : String(e)],
+            )
+            try {
+              await pool.query(`UPDATE messages SET status='failed', error=$2 WHERE id=$1`, [
+                row.payload.messageId,
+                e instanceof Error ? e.message : String(e),
+              ])
+            } catch {
+              // ignore
+            }
+          }
+        }
+        if (!rows.length) await new Promise((r) => setTimeout(r, 1500))
+      } catch (e) {
+        try {
+          await client.query('ROLLBACK')
+        } catch {
+          // ignore
+        }
+        throw e
+      } finally {
+        client.release()
+      }
+    } catch (e) {
+      console.warn('[worker] pg poll error', e instanceof Error ? e.message : e)
+      await new Promise((r) => setTimeout(r, 3000))
+    }
+  }
+}
+
 async function main() {
   await startMetricsServer()
-  const conn = await amqp.connect(rabbitUrl)
-  const ch = await conn.createChannel()
-  await ch.assertQueue(queueSend, { durable: true })
-  ch.prefetch(10)
-  console.log(`[worker] consuming ${queueSend} provider=${resolveProvider()}`)
-
-  ch.consume(queueSend, async (msg) => {
-    if (!msg) return
-    try {
-      const job = JSON.parse(msg.content.toString()) as SendJobPayload
-      await handleSend(job)
-      ch.ack(msg)
-    } catch (e) {
-      failCounter.inc({ provider: resolveProvider() })
-      console.error('[worker] send failed', e)
-      try {
-        const job = JSON.parse(msg.content.toString()) as SendJobPayload
-        await pool.query(`UPDATE messages SET status='failed', error=$2 WHERE id=$1`, [
-          job.messageId,
-          e instanceof Error ? e.message : String(e),
-        ])
-      } catch {
-        // ignore
-      }
-      ch.nack(msg, false, false)
-    }
-  })
+  const backend = resolveQueueBackend()
+  console.log(`[worker] queue backend=${backend}`)
+  if (backend === 'postgres') {
+    await pollPostgres()
+  } else {
+    await consumeRabbit()
+  }
 }
 
 main().catch((e) => {

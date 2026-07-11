@@ -161,6 +161,22 @@ CREATE TABLE IF NOT EXISTS blacklist_checks (
 
 CREATE INDEX IF NOT EXISTS idx_blacklist_checked ON blacklist_checks(checked_at);
 
+-- RabbitMQ 未使用時のフォールバックキュー（Railway 等）
+CREATE TABLE IF NOT EXISTS send_jobs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  queue_name  TEXT NOT NULL DEFAULT 'mail.send',
+  payload     JSONB NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'pending',
+  error       TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  locked_at   TIMESTAMPTZ,
+  done_at     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_send_jobs_pending
+  ON send_jobs (created_at)
+  WHERE status = 'pending';
+
 -- デモ用オペレーター（password: admin1234 / bcrypt は API 起動時に upsert も可）
 INSERT INTO users (email, password_hash, name, role)
 VALUES (
