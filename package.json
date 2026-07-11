@@ -1,0 +1,20 @@
+{
+  "name": "bulk-mail-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "大量メール送信サーバ（Bulk Mail Server）パッケージ",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @bms/api",
+    "dev:worker": "npm run dev -w @bms/worker",
+    "dev:web": "npm run dev -w @bms/web",
+    "build": "npm run build -w @bms/shared && npm run build -w @bms/api && npm run build -w @bms/worker && npm run build -w @bms/web",
+    "db:migrate": "npm run db:migrate -w @bms/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

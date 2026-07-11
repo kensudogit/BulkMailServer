@@ -14,7 +14,7 @@ Next.js Console ──JWT──▶ Node API (Express)
                            └─ Prometheus metrics
                                 │
                                 ▼
-                         Worker (SMTP → Postfix)
+                         Worker (SMTP → Mailpit / Postfix / SES)
                                 │
                                 ▼
                     Open / Click tracking
@@ -48,12 +48,12 @@ docker compose up -d
 ```
 
 確認:
-- PostgreSQL `localhost:5432`
+- PostgreSQL `localhost:5433`（ホスト 5432 が使用中のため）
 - RabbitMQ UI `http://localhost:15672`（bms / bms_secret）
+- Mailpit UI `http://localhost:8025`（SMTP `:1025`）
 - MinIO `http://localhost:9001`
-- Grafana `http://localhost:3001`（admin / admin）
-- Prometheus `http://localhost:9090`
-- OpenSearch `http://localhost:9200`
+- 監視系（任意）: `docker compose --profile obs up -d`
+  - Grafana `http://localhost:3001` / Prometheus `:9090` / OpenSearch `:9200`
 
 ### 2. アプリ
 
@@ -74,7 +74,7 @@ npm run dev:web      # :3000
 
 1. **受信者**でリスト作成・CSV インポート
 2. **キャンペーン**で件名・HTML 作成 → **送信開始**
-3. Worker が RabbitMQ から取得し Postfix 経由で送信
+3. Worker が RabbitMQ から取得し Mailpit（ローカル）経由で送信
 4. メール内の「配信停止はこちら」で停止登録（以降スキップ）
 5. **信用スコア**で Bounce/Complaint/Open/Click/Delivery を監視
 6. DNSBL / SPF チェックで送信ドメイン健全性を確認
@@ -103,11 +103,43 @@ curl -X POST http://localhost:8080/webhooks/complaint \
 - [ ] レート制限・ウォームアップ計画
 - [ ] OpenSearch への配信ログ転送（Filebeat 等）
 
+## Amazon SES 併用
+
+```bash
+# .env
+MAIL_PROVIDER=ses
+SES_SMTP_USER=...
+SES_SMTP_PASS=...
+SES_CONFIGURATION_SET=bms-events
+```
+
+1. SES でドメイン検証 + SMTP 認証情報を発行
+2. Configuration Set で Bounce/Complaint を SNS Topic へ
+3. SNS 購読先: `POST https://<api>/webhooks/ses`
+4. Worker を再起動（`MAIL_PROVIDER=ses`）
+
+ローカル既定は `MAIL_PROVIDER=smtp`（Mailpit `:1025`）。本番は Postfix または SES。
+
+## Spring Boot API（並行）
+
+Node API (`:8080`) と同じ DB / RabbitMQ を共有する Java 実装です。
+
+```bash
+cd apps/api-java
+# JDK 21 + Maven が必要
+mvn spring-boot:run
+# → http://localhost:8090/health
+```
+
+主なエンドポイント: `/auth/login` `/campaigns` `/reputation` `/health`
+
 ## ディレクトリ
+
 
 ```text
 BulkMailServer/
-  apps/api       API
+  apps/api       Node API (:8080)
+  apps/api-java  Spring Boot API (:8090)
   apps/worker    配信ワーカー
   apps/web       Next.js コンソール
   packages/shared 共有型

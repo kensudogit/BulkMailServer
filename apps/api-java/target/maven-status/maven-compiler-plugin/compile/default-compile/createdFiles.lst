@@ -1,0 +1,12 @@
+local\bms\web\CampaignController.class
+local\bms\config\DataSourceConfig.class
+local\bms\config\AppConfig$1.class
+local\bms\security\JwtService.class
+local\bms\config\AppConfig.class
+local\bms\web\AuthController$LoginRequest.class
+local\bms\web\CampaignController$CreateCampaign.class
+local\bms\web\HealthController.class
+local\bms\web\ReputationController.class
+local\bms\web\AuthHelper.class
+local\bms\web\AuthController.class
+local\bms\BulkMailApiApplication.class
