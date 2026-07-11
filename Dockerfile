@@ -20,6 +20,8 @@ COPY apps/api apps/api
 COPY apps/worker apps/worker
 COPY apps/web apps/web
 COPY sql sql
+# Next standalone COPY 用（public が空でもディレクトリを保証）
+RUN mkdir -p apps/web/public
 
 RUN npm run build -w @bms/shared \
   && npm run build -w @bms/api \
