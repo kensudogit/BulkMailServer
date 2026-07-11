@@ -21,7 +21,9 @@ export async function api<T = unknown>(
     const token = getToken()
     if (token) headers.set('Authorization', `Bearer ${token}`)
   }
-  const res = await fetch(`${API}${path}`, { ...opts, headers })
+  // NEXT_PUBLIC_API_BASE=/backend のとき同一オリジン（Railway 一体型）
+  const base = API.replace(/\/$/, '')
+  const res = await fetch(`${base}${path}`, { ...opts, headers })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error ? JSON.stringify(data.error) : `HTTP ${res.status}`)
   return data as T

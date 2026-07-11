@@ -1,59 +1,58 @@
 # Railway デプロイ手順（Bulk Mail Server）
 
-## 構成
+## 推奨: 一体型サービス（andpad と同じ方式）
 
-| Service | Dockerfile | 公開 | 役割 |
-|---------|------------|------|------|
-| api | `Dockerfile.api` | はい | REST / Webhook / JWT |
-| web | `Dockerfile.web` | はい | Next.js コンソール |
-| worker | `Dockerfile.worker` | いいえ | RabbitMQ → SMTP/SES |
-| Postgres | Railway plugin | 内部 | DB |
-| Redis | Railway plugin | 内部 | キャッシュ |
-| RabbitMQ | `rabbitmq:3-management-alpine` | 内部 | キュー |
+ルートの `Dockerfile` が **API + Worker + Web** を 1 コンテナで起動します。
+ブラウザは `/backend/*` 経由で同一オリジンの API にアクセスします。
 
-## CLI（ログイン後）
+| 項目 | 値 |
+|------|-----|
+| Root Directory | **空** |
+| Dockerfile | `Dockerfile` |
+| Config | `/railway.toml` |
+| Healthcheck | `/` |
+
+## 今すぐデプロイ（CLI）
 
 ```bash
 cd C:\devlop\BulkMailServer
 railway login
-railway init          # または既存プロジェクトを link
+railway init
 railway add --database postgres
 railway add --database redis
-# RabbitMQ は Dashboard で Docker Image サービスを追加
+# Dashboard で RabbitMQ イメージサービスを追加
+railway up
+railway domain
 ```
 
-## 必須変数（api / worker 共通）
+## GitHub 連携（Dashboard）
+
+1. https://railway.app/new → Deploy from GitHub repo
+2. `kensudogit/BulkMailServer` を選択
+3. Postgres / Redis を Add Plugin
+4. RabbitMQ: New Service → Docker Image → `rabbitmq:3-management-alpine`
+5. 変数を設定して Deploy
+
+## 必須変数
 
 ```text
 JWT_SECRET=<32文字以上>
 UNSUBSCRIBE_TOKEN_SECRET=<32文字以上>
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
-RABBITMQ_URL=amqp://guest:guest@rabbitmq.railway.internal:5672
-API_BASE_URL=https://<apiの公開ドメイン>
-WEB_BASE_URL=https://<webの公開ドメイン>
+RABBITMQ_URL=amqp://guest:guest@<rabbitのプライベートホスト>:5672
+API_BASE_URL=https://<このサービスの公開ドメイン>/backend
+WEB_BASE_URL=https://<このサービスの公開ドメイン>
+NEXT_PUBLIC_API_BASE=/backend
 MAIL_PROVIDER=ses
-AWS_REGION=ap-northeast-1
 SES_SMTP_USER=...
 SES_SMTP_PASS=...
 SES_CONFIGURATION_SET=bms-events
 ```
 
-## web 変数
+初回ログイン: `admin@example.local` / `admin1234`
 
-```text
-NEXT_PUBLIC_API_BASE=https://<apiの公開ドメイン>
-```
+## 分割デプロイ（任意）
 
-ビルド時引数としても同じ値を渡す（Dockerfile.web の ARG）。
-
-## GitHub 連携
-
-1. このリポジトリを push
-2. Railway Dashboard → New Project → Deploy from GitHub
-3. サービスごとに Dockerfile Path を設定
-4. Generate Domain で api / web を公開
-
-## 初回スキーマ
-
-API 起動時に `sql/init.sql` を自動適用します（`IF NOT EXISTS`）。
+`Dockerfile.api` / `Dockerfile.web` / `Dockerfile.worker` と
+`railway.web.toml` / `railway.worker.toml` でサービス分割も可能です。
